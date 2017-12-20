@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+<meta name="author" content="Chris Hua" />
+
+<meta name="date" content="2017-12-25" />
+
+<title>Bitcoin Hashing Example</title>
+
+<script src="examples_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="examples_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="examples_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="examples_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="examples_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="examples_files/navigation-1.1/tabsets.js"></script>
+<link href="examples_files/highlightjs-1.1/default.css" rel="stylesheet" />
+<script src="examples_files/highlightjs-1.1/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs && document.readyState && document.readyState === "complete") {
+   window.setTimeout(function() {
+      hljs.initHighlighting();
+   }, 0);
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+</style>
+
+
+
+<div class="container-fluid main-container">
+
+<!-- tabsets -->
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+</script>
+
+<!-- code folding -->
+
+
+
+
+
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Bitcoin Hashing Example</h1>
+<h4 class="author"><em>Chris Hua</em></h4>
+<h4 class="date"><em>12/25/2017</em></h4>
+
+</div>
+
+
+<div id="part-1-create-keys" class="section level1">
+<h1>Part 1: Create Keys</h1>
+<p>As per class, we define some <span class="math inline">\(n = p*q\)</span>, or 161. Then, given <span class="math inline">\(e=13\)</span>, the public key is a composition of 161 and 13.</p>
+<p>We can find the private key by evaluating the modulo condition for each <span class="math inline">\(d\)</span> between 1 and a given max number, then returning the first one that is equal to 1. This operation is vectorized and as such much faster in R than a loop.</p>
+<pre class="r"><code>find_priv_key &lt;- function(p, q, e, max_iter = 100) {
+    d &lt;- 1:max_iter
+    val &lt;- (e * d) %% ((p - 1) * (q - 1))
+    min(which(val == 1))
+}
+find_priv_key(7, 23, 13)</code></pre>
+<pre><code>## [1] 61</code></pre>
+<p>The private key is then 61.</p>
+<div id="part-2-sign-a-message" class="section level2">
+<h2>Part 2: Sign a message</h2>
+<p>To do the modulo math necessary to sign a message, we need to do modular exponentation (generally). We borrow the implementation in package <code>numbers</code> to do this.</p>
+<pre class="r"><code>sign_message &lt;- function(pk, n, m) {
+    numbers::modpower(m, pk, n)
+}
+sign_message(61.0, 161.0, 12.0)</code></pre>
+<pre><code>## [1] 124</code></pre>
+</div>
+<div id="part-3-check-if-a-message-is-authentic" class="section level2">
+<h2>Part 3: Check if a message is authentic</h2>
+<p>To check if a message is authentic we can create another function to check the encryption.</p>
+<p>Message 1:</p>
+<pre><code>## [1] FALSE FALSE</code></pre>
+<p>Message 2:</p>
+<pre><code>## [1] FALSE FALSE</code></pre>
+<p>Message 3:</p>
+<pre><code>## [1] FALSE FALSE</code></pre>
+<p>None of these are authentic!</p>
+</div>
+</div>
+<div id="part-4-mining-bitcoin" class="section level1">
+<h1>Part 4: Mining Bitcoin</h1>
+<p>We find a nonce that, when appended to the message and hashed via md5, starts with 3 zeroes. Our process is as follows:</p>
+<pre class="r"><code>prove_work &lt;- function(m, k, start = 1000, max_iter = 5000) {
+    for(i in start:(start+max_iter)) {
+        item &lt;- paste0(m, i)
+        hash &lt;- digest::digest(item, algo = &quot;md5&quot;)
+        if(substr(hash, start = 1, stop = 3) == &quot;000&quot;) {
+            return(i)
+        }
+    }
+    -1 # answer is outside search bounds
+}</code></pre>
+<p>Then our result is given by:</p>
+<pre><code>## [1] 1267</code></pre>
+</div>
+<div id="part-5-bitcoin-game-theory" class="section level1">
+<h1>Part 5: Bitcoin game theory</h1>
+<p><strong>a)</strong> There is some optimum search start point, we can call it <span class="math inline">\(i^{\prime}\)</span>. Since we have approximately equivalent compute power, we will assume that we can check each number in equal amounts of time.</p>
+<p>Then, if my competition starts at 0, and I start at 1, in expectation I will dominate them, since I will check each number greater than 1, <em>before</em> they can.</p>
+<p>We don’t show it here but the greatest concentration of “hash solutions” is at a relatively low number. We performed a search for 1000 hash solutions with <span class="math inline">\(k=3\)</span> digits, and with hash values between 0 and 20000, and examined the distribution. The average value was about 3600, and 80% were under 5000. The insight is that there is a long tail of values to check for any given message, and that there might be increased efficiency if we do a greedy search - cap the number of iterations we try for each block, and aim to solve as many ‘easy’ blocks as possible.</p>
+<p>We should combine the ‘greedy’ approach with a larger start value in our search against otherwise clueless competitors.</p>
+<p><strong>b)</strong> In the face of competition using the same strategy, we would move to larger start numbers. As we noted above, there is a tradeoff between the start point <span class="math inline">\(i\)</span> and the number of blocks solvable within <span class="math inline">\(k\)</span> iterations from the start point.</p>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

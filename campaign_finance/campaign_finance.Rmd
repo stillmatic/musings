@@ -1,0 +1,155 @@
+---
+title: "Campaign Finance Exploration"
+author: "Chris Hua"
+date: "17 December 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+DATA_SRC <- "https://data.world/codefordc/campaign-finance"
+saved_cfg <- data.world::save_config("asdf")
+data.world::set_config(saved_cfg)
+
+```
+
+## Motivation
+
+Campaign finance is a well studied and deeply interesting area of politics. This writeup explores some campaign donations from Washington DC.
+
+## The Data
+
+Just a few rows
+
+```{r}
+qry <- data.world::qry_sql(
+    "SELECT * FROM contributions LIMIT 5"
+)
+data.world::query(qry, DATA_SRC) %>% knitr::kable()
+```
+
+### Number of donations by time
+
+Next, we want to see if there's any interesting trends in the donation dates and aggregated amounts. We can pull this data with the following SQL code:
+
+```{r}
+date_qry <- data.world::qry_sql("SELECT 
+    date_of_receipt     AS dt
+    , COUNT(*)          AS n_donations
+    , SUM(amount)       AS sum_donations
+    FROM contributions
+    GROUP BY dt
+    ORDER BY dt")
+date_df <- data.world::query(date_qry, DATA_SRC)
+```
+
+At a date granularity, we can kind of see some trends in the data, but it's really noisy. 
+
+We can plot the donations, with one point per day.
+
+```{r}
+date_df %>%
+    ggplot(aes(x = dt, y = n_donations)) +
+    geom_point() + 
+    ggtitle("Donations by date") + 
+    ylab("# of Donations") + 
+    xlab("Date")+
+    scale_x_date(date_breaks = "1 years", date_labels = "%Y")
+```
+
+Let's group the donations by week instead. This looks much cleaner!
+
+```{r}
+date_df %>%
+    group_by(dt = lubridate::round_date(dt, unit = "week")) %>%
+    summarize(n_donations = sum(n_donations),
+              amount = sum(sum_donations)) %>%
+    ggplot(aes(x = dt, y = n_donations)) + 
+    geom_point() +
+    ggtitle("Donations by date", "Rounded to weekly data") + 
+    ylab("# of Donations") + 
+    xlab("Date")+
+    scale_x_date(date_breaks = "1 years", date_labels = "%Y")
+```
+
+Finally, let's group them by month and visualize the results. When working with data, we often have to trade off human interpretability for robustness. 
+
+```{r}
+date_df %>%
+    group_by(dt = lubridate::round_date(dt, unit = "month")) %>%
+    summarize(n_donations = sum(n_donations),
+              amount = sum(sum_donations)) %>%
+    ggplot(aes(x = dt, y = n_donations)) + 
+    geom_point() +
+    ggtitle("Donations by date", "Rounded to monthly data") + 
+    ylab("# of Donations") + 
+    xlab("Date") +
+    scale_x_date(date_breaks = "1 years", date_labels = "%Y")
+```
+
+### Amount of donations by time
+
+```{r}
+date_df %>%
+    group_by(dt = lubridate::round_date(dt, unit = "week")) %>%
+    summarize(n_donations = sum(n_donations),
+              amount = sum(sum_donations)) %>%
+    ggplot(aes(x = dt, y = amount)) + 
+    geom_point() +
+    ggtitle("Sum of donations by date", "Rounded to weekly data") + 
+    ylab("Amount USD") + 
+    xlab("Date")+
+    scale_x_date(date_breaks = "1 years", date_labels = "%Y")
+```
+
+```{r}
+date_df %>%
+    group_by(dt = lubridate::round_date(dt, unit = "month")) %>%
+    summarize(n_donations = sum(n_donations),
+              amount = sum(sum_donations)) %>%
+    ggplot(aes(x = dt, y = amount)) + 
+    geom_point() +
+    ggtitle("Sum of donations by date", "Rounded to weekly data") + 
+    ylab("Amount USD") + 
+    xlab("Date")+
+    scale_x_date(date_breaks = "1 years", date_labels = "%Y")
+```
+
+### Campaign level data
+
+We can easily pull some campaign level data to figure out which campaigns raised the most money and garnered the most engagement.
+
+```{r}
+cmp_qry <- data.world::qry_sql("SELECT 
+    committee_name      AS campaign
+    , date_of_receipt   AS dt
+    , COUNT(*)          AS n_donations
+    , SUM(amount)       AS sum_donations
+    FROM contributions
+    GROUP BY campaign, dt
+    ORDER BY campaign, dt")
+cmp_df <- data.world::query(cmp_qry, DATA_SRC)
+```
+
+
+
+```{r}
+cmp_df %>%
+    group_by(campaign, dt = lubridate::round_date(dt, "year")) %>%
+    summarize(n_donations = sum(n_donations), 
+              sum_donations = sum(sum_donations)) %>%
+    arrange(-n_donations) %>%
+    head(10)
+```
+
+```{r}
+cmp_df %>%
+    group_by(campaign, dt = lubridate::round_date(dt, "year")) %>%
+    summarize(n_donations = sum(n_donations), 
+              sum_donations = sum(sum_donations)) %>%
+    arrange(-sum_donations) %>% 
+    head(10)
+```
